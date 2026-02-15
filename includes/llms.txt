@@ -1,6 +1,6 @@
-Plano Docs v0.4.4
+Plano Docs v0.4.6
 llms.txt (auto-generated)
-Generated (UTC): 2026-02-10T18:29:51.284239+00:00
+Generated (UTC): 2026-02-15T22:23:46.451536+00:00
 
 Table of contents
 - Agents (concepts/agents)
@@ -199,7 +199,7 @@ listeners:
   - type: agent
     name: agent_1
     port: 8001
-    router: arch_agent_router
+    router: plano_agent_router
     agents:
       - id: rag_agent
         description: virtual assistant for retrieval augmented generation tasks
@@ -396,7 +396,7 @@ client = OpenAI(
     base_url="http://127.0.0.1:12000/v1"
 )
 
-# Use any model configured in your arch_config.yaml
+# Use any model configured in your plano_config.yaml
 completion = client.chat.completions.create(
     model="gpt-4o-mini",  # Or use :ref:`model aliases <model_aliases>` like "fast-model"
     max_tokens=50,
@@ -560,7 +560,7 @@ client = anthropic.Anthropic(
     base_url="http://127.0.0.1:12000"
 )
 
-# Use any model configured in your arch_config.yaml
+# Use any model configured in your plano_config.yaml
 message = client.messages.create(
     model="claude-3-5-sonnet-20241022",
     max_tokens=50,
@@ -2319,7 +2319,7 @@ Example 1: Adjusting Retrieval
 
 User: What are the benefits of renewable energy?
 **[Plano]**: Check if there is an available <prompt_target> that can handle this user query.
-**[Plano]**: Found "get_info_for_energy_source" prompt_target in arch_config.yaml. Forward prompt to the endpoint configured in "get_info_for_energy_source"
+**[Plano]**: Found "get_info_for_energy_source" prompt_target in plano_config.yaml. Forward prompt to the endpoint configured in "get_info_for_energy_source"
 ...
 Assistant: Renewable energy reduces greenhouse gas emissions, lowers air pollution, and provides sustainable power sources like solar and wind.
 
@@ -2332,13 +2332,13 @@ Example 2: Switching Intent
 
 User: What are the symptoms of diabetes?
 **[Plano]**: Check if there is an available <prompt_target> that can handle this user query.
-**[Plano]**: Found "diseases_symptoms" prompt_target in arch_config.yaml. Forward disease=diabeteres to "diseases_symptoms" prompt target
+**[Plano]**: Found "diseases_symptoms" prompt_target in plano_config.yaml. Forward disease=diabeteres to "diseases_symptoms" prompt target
 ...
 Assistant: Common symptoms include frequent urination, excessive thirst, fatigue, and blurry vision.
 
 User: How is it diagnosed?
 **[Plano]**: New intent detected.
-**[Plano]**: Found "disease_diagnoses" prompt_target in arch_config.yaml. Forward disease=diabeteres to "disease_diagnoses" prompt target
+**[Plano]**: Found "disease_diagnoses" prompt_target in plano_config.yaml. Forward disease=diabeteres to "disease_diagnoses" prompt target
 ...
 Assistant: Diabetes is diagnosed through blood tests like fasting blood sugar, A1C, or an oral glucose tolerance test.
 
@@ -3090,13 +3090,13 @@ $ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Option 1: Install planoai with uv (Recommended)
 
-$ uv tool install planoai==0.4.4
+$ uv tool install planoai==0.4.6
 
 Option 2: Install with pip (Traditional)
 
 $ python -m venv venv
 $ source venv/bin/activate   # On Windows, use: venv\Scripts\activate
-$ pip install planoai==0.4.4
+$ pip install planoai==0.4.6
 
 
 
@@ -3133,7 +3133,7 @@ Start Plano:
 
 $ planoai up plano_config.yaml
 # Or if installed with uv tool: uvx planoai up plano_config.yaml
-2024-12-05 11:24:51,288 - planoai.main - INFO - Starting plano cli version: 0.4.4
+2024-12-05 11:24:51,288 - planoai.main - INFO - Starting plano cli version: 0.4.6
 2024-12-05 11:24:51,825 - planoai.utils - INFO - Schema validation successful!
 2024-12-05 11:24:51,825 - planoai.main - INFO - Starting plano
 ...
@@ -4163,6 +4163,74 @@ Forward the traceparent header to downstream services.
 Sampling Policy: The 100 in random_sampling: 100 means that all the requests as sampled for tracing.
 You can adjust this value from 0-100.
 
+Tracing with the CLI
+
+The Plano CLI ships with a local OTLP/gRPC listener and a trace viewer so you can inspect spans without wiring a full observability backend. This is ideal for development, debugging, and quick QA.
+
+Quick Start
+
+You can enable tracing in either of these ways:
+
+Start the local listener explicitly:
+
+$ planoai trace listen
+
+Or start Plano with tracing enabled (auto-starts the local OTLP listener):
+
+$ planoai up --with-tracing
+
+# Optional: choose a different listener port
+$ planoai up --with-tracing --tracing-port 4318
+
+Send requests through Plano as usual. The listener accepts OTLP/gRPC on:
+
+0.0.0.0:4317 (default)
+
+View the most recent trace:
+
+$ planoai trace
+
+Inspect and Filter Traces
+
+List available trace IDs:
+
+$ planoai trace --list
+
+Open a specific trace (full or short trace ID):
+
+$ planoai trace 7f4e9a1c
+$ planoai trace 7f4e9a1c0d9d4a0bb9bf5a8a7d13f62a
+
+Filter by attributes and time window:
+
+$ planoai trace --where llm.model=gpt-4o-mini --since 30m
+$ planoai trace --filter "http.*" --limit 5
+
+Return JSON for automation:
+
+$ planoai trace --json
+$ planoai trace --list --json
+
+Show full span attributes (disable default compact view):
+
+$ planoai trace --verbose
+$ planoai trace -v
+
+Point the CLI at a different local listener port:
+
+$ export PLANO_TRACE_PORT=50051
+$ planoai trace --list
+
+Notes
+
+--where accepts repeatable key=value filters and uses AND semantics.
+
+--filter supports wildcards (*) to limit displayed attributes.
+
+--no-interactive disables prompts when listing traces.
+
+By default, inbound/outbound spans use a compact attribute view.
+
 Trace Propagation
 
 Plano uses the W3C Trace Context standard for trace propagation, which relies on the traceparent header.
@@ -4384,6 +4452,66 @@ tracing efficiently. This approach simplifies the process of collecting and anal
 tools like AWS X-Ray and Datadog, enhancing observability and facilitating faster debugging and optimization.
 
 Additional Resources
+
+CLI Reference
+
+planoai trace
+
+Trace requests captured by the local OTLP listener.
+
+Synopsis
+
+$ planoai trace [TARGET] [OPTIONS]
+
+Targets
+
+last (default): show the most recent trace.
+
+any: allow interactive selection when available.
+
+<trace-id>: full 32-hex trace ID.
+
+<short-id>: first 8 hex characters.
+
+Options
+
+--filter <pattern>: limit displayed attributes to matching keys (supports *).
+
+--where <key=value>: match traces containing a specific attribute (repeatable, AND).
+
+--list: list trace IDs only.
+
+--no-interactive: disable interactive prompts/selections.
+
+--limit <n>: limit the number of traces returned.
+
+--since <window>: look back window (5m, 2h, 1d).
+
+--json: output raw JSON instead of formatted output.
+
+--verbose, -v: show all span attributes. By default, inbound/outbound
+spans are displayed in a compact view.
+
+Environment
+
+PLANO_TRACE_PORT: gRPC port used by planoai trace to query traces
+(defaults to 4317).
+
+planoai trace listen
+
+Start a local OTLP/gRPC listener.
+
+Synopsis
+
+$ planoai trace listen [OPTIONS]
+
+Options
+
+--host <host>: bind address (default: 0.0.0.0).
+
+--port <port>: gRPC listener port (default: 4317).
+
+External References
 
 OpenTelemetry Documentation
 
@@ -5595,12 +5723,12 @@ Doc: resources/configuration_reference
 Configuration Reference
 
 The following is a complete reference of the plano_config.yml that controls the behavior of a single instance of
-the Arch gateway. This where you enable capabilities like routing to upstream LLm providers, defining prompt_targets
+the Plano gateway. This where you enable capabilities like routing to upstream LLm providers, defining prompt_targets
 where prompts get routed to, apply guardrails, and enable critical agent observability features.
 
 Plano Configuration - Full Reference
 
-# Arch Gateway configuration version
+# Plano Gateway configuration version
 version: v0.3.0
 
 # External HTTP agents - API type is controlled by request path (/v1/responses, /v1/messages, /v1/chat/completions)
@@ -5734,7 +5862,7 @@ Create a docker-compose.yml file with the following configuration:
 # docker-compose.yml
 services:
   plano:
-    image: katanemo/plano:0.4.4
+    image: katanemo/plano:0.4.6
     container_name: plano
     ports:
       - "10000:10000" # ingress (client -> plano)
@@ -6014,7 +6142,7 @@ prompt_targets:
     endpoint:
       name: app_server
       path: /agent/summary
-    # Arch uses the default LLM and treats the response from the endpoint as the prompt to send to the LLM
+    # Plano uses the default LLM and treats the response from the endpoint as the prompt to send to the LLM
     auto_llm_dispatch_on_response: true
     # override system prompt for this prompt target
     system_prompt: You are a helpful information extraction assistant. Use the information that is provided to you.
@@ -6035,7 +6163,7 @@ prompt_targets:
         default: false
         enum: [true, false]
 
-# Arch creates a round-robin load balancing between different endpoints, managed via the cluster subsystem.
+# Plano creates a round-robin load balancing between different endpoints, managed via the cluster subsystem.
 endpoints:
   app_server:
     # value could be ip address or a hostname with port
