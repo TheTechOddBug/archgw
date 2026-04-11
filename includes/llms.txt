@@ -1,6 +1,6 @@
-Plano Docs v0.4.17
+Plano Docs v0.4.18
 llms.txt (auto-generated)
-Generated (UTC): 2026-04-05T21:51:19.536053+00:00
+Generated (UTC): 2026-04-11T05:15:14.489385+00:00
 
 Table of contents
 - Agents (concepts/agents)
@@ -3190,13 +3190,13 @@ $ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Option 1: Install planoai with uv (Recommended)
 
-$ uv tool install planoai==0.4.17
+$ uv tool install planoai==0.4.18
 
 Option 2: Install with pip (Traditional)
 
 $ python -m venv venv
 $ source venv/bin/activate   # On Windows, use: venv\Scripts\activate
-$ pip install planoai==0.4.17
+$ pip install planoai==0.4.18
 
 
 
@@ -3978,6 +3978,38 @@ instead of a file.
 For the canonical Plano Kubernetes deployment (ConfigMap, Secrets, Deployment YAML), see
 deployment. For full step-by-step commands specific to this demo, see the
 demo README.
+
+
+
+Model Affinity
+
+In agentic loops — where a single user request triggers multiple LLM calls through tool use — Plano’s router classifies each turn independently. Because successive prompts differ in intent (tool selection looks like code generation, reasoning about results looks like analysis), the router may select different models mid-session. This causes behavioral inconsistency and invalidates provider-side KV caches, increasing both latency and cost.
+
+Model affinity pins the routing decision for the duration of a session. Send an X-Model-Affinity header with any string identifier (typically a UUID). The first request routes normally and caches the result. All subsequent requests with the same affinity ID skip routing and reuse the cached model.
+
+import uuid
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:12000/v1", api_key="EMPTY")
+affinity_id = str(uuid.uuid4())
+
+# Every call in the loop uses the same header
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=tools,
+    extra_headers={"X-Model-Affinity": affinity_id},
+)
+
+Without the header, routing runs fresh on every request — no behavior change for existing clients.
+
+Configuration:
+
+routing:
+  session_ttl_seconds: 600    # How long affinity lasts (default: 10 min)
+  session_max_entries: 10000  # Max cached sessions (upper limit: 10000)
+
+To start a new routing decision (e.g., when the agent’s task changes), generate a new affinity ID.
 
 Combining Routing Methods
 
@@ -6525,6 +6557,11 @@ overrides:
   # Model used for agent orchestration (must be listed in model_providers)
   agent_orchestration_model: Plano-Orchestrator
 
+# Model affinity — pin routing decisions for agentic loops
+routing:
+  session_ttl_seconds: 600    # How long a pinned session lasts (default: 600s / 10 min)
+  session_max_entries: 10000  # Max cached sessions before eviction (upper limit: 10000)
+
 # State storage for multi-turn conversation history
 state_storage:
   type: memory            # "memory" (in-process) or "postgres" (persistent)
@@ -6614,7 +6651,7 @@ Create a docker-compose.yml file with the following configuration:
 # docker-compose.yml
 services:
   plano:
-    image: katanemo/plano:0.4.17
+    image: katanemo/plano:0.4.18
     container_name: plano
     ports:
       - "10000:10000" # ingress (client -> plano)
@@ -6684,7 +6721,7 @@ spec:
     spec:
       containers:
         - name: plano
-          image: katanemo/plano:0.4.17
+          image: katanemo/plano:0.4.18
           ports:
             - containerPort: 12000  # LLM gateway (chat completions, model routing)
               name: llm-gateway
